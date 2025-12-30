@@ -17,7 +17,9 @@ export interface Meal {
 
 export interface DayConfig {
   mealIds: string[]; // Array of meal IDs for the day
-  status: 'pending' | 'delivered' | 'postponed';
+  status: 'pending' | 'prepared' | 'out-for-delivery' | 'delivered' | 'postponed';
+  departureTime?: string;
+  arrivalTime?: string;
 }
 
 export interface UserProfile {
@@ -78,14 +80,11 @@ export interface Subscription {
   date: string;
   planTitle?: string;
   pricePaid?: number;
-  mealsPerDay: number; // Fixed number of meals per day for this subscription
-  // Enhanced tracking
+  mealsPerDay: number; 
   totalMeals: number;
   deliveredCount: number;
   postponedCount: number;
   dailyConfigs?: Record<string, DayConfig>; // Key is date string YYYY-MM-DD
-  departureTime?: string;
-  arrivalTime?: string;
   status: 'active' | 'postponed' | 'delivered' | 'out-for-delivery' | 'cancelled';
 }
 

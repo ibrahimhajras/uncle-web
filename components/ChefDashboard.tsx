@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Subscription, UserProfile, SubscriptionPlan, DeliverySlot, Meal, DayConfig } from '../types';
 import { dataService } from '../services/dataService';
-import { ChefHat, LogOut, Clock, MapPin, Phone, Truck, CheckCircle, AlertTriangle, Calendar, User, Info, RefreshCcw, Plus, Trash2, X, ChevronDown, ChevronUp, CalendarDays, Edit3, Hash, MessageSquare } from 'lucide-react';
+import { ChefHat, LogOut, Clock, MapPin, Phone, Truck, CheckCircle, AlertTriangle, Calendar, User, Info, RefreshCcw, Plus, Trash2, X, ChevronDown, ChevronUp, CalendarDays, Edit3, Hash, MessageSquare, Utensils } from 'lucide-react';
 import { OptimizedImage } from './OptimizedImage';
 
 interface ChefDashboardProps {
@@ -19,7 +19,6 @@ interface SubscriptionModalProps {
   handleSaveSub: (e: React.FormEvent) => Promise<void>;
 }
 
-// Fixed: Moved outside to prevent re-mounting on every state change
 const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ mode, onClose, subForm, setSubForm, plans, handleSaveSub }) => {
     const isEdit = mode === 'EDIT';
 
@@ -109,20 +108,16 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'out-for-delivery' | 'delivered'>('all');
   
-  // Modals States
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDayModal, setShowDayModal] = useState(false);
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
   
-  // Role Permission Flags
   const isEmployee = user.isEmployee;
 
-  // Day Editing State
   const [activeDayEdit, setActiveDayEdit] = useState<{subId: string, date: string, mealsPerDay: number} | null>(null);
   const [dayEditForm, setDayEditForm] = useState<DayConfig>({ mealIds: [], status: 'pending' });
 
-  // Add/Edit Sub State
   const [subForm, setSubForm] = useState({
       id: '',
       customerName: '',
@@ -160,6 +155,47 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
       } catch (err) {
           alert('فشل في تحديث الحالة');
       }
+  };
+
+  const handleDailyStatusUpdate = async (sub: Subscription, status: DayConfig['status']) => {
+    const todayKey = new Date().toISOString().split('T')[0];
+    const currentConfigs = sub.dailyConfigs || {};
+    const todayConfig = currentConfigs[todayKey] || { mealIds: [], status: 'pending' };
+
+    // Avoid double-counting if already delivered/postponed
+    const wasDelivered = todayConfig.status === 'delivered';
+    const wasPostponed = todayConfig.status === 'postponed';
+
+    const newTodayConfig: DayConfig = {
+        ...todayConfig,
+        status: status,
+        ...(status === 'out-for-delivery' && { departureTime: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}) }),
+        ...(status === 'delivered' && { arrivalTime: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}) })
+    };
+
+    const newConfigs = { ...currentConfigs, [todayKey]: newTodayConfig };
+    
+    // Counter updates
+    let newDeliveredCount = sub.deliveredCount || 0;
+    let newPostponedCount = sub.postponedCount || 0;
+
+    if (status === 'delivered' && !wasDelivered) {
+        newDeliveredCount += sub.mealsPerDay;
+        if (wasPostponed) newPostponedCount = Math.max(0, newPostponedCount - 1);
+    } else if (status === 'postponed' && !wasPostponed) {
+        newPostponedCount += 1;
+        if (wasDelivered) newDeliveredCount = Math.max(0, newDeliveredCount - sub.mealsPerDay);
+    } else if (status !== 'delivered' && status !== 'postponed') {
+        // Rolling back from a final state
+        if (wasDelivered) newDeliveredCount = Math.max(0, newDeliveredCount - sub.mealsPerDay);
+        if (wasPostponed) newPostponedCount = Math.max(0, newPostponedCount - 1);
+    }
+
+    await handleUpdateStatus(sub.id, {
+        dailyConfigs: newConfigs,
+        deliveredCount: newDeliveredCount,
+        postponedCount: newPostponedCount
+    });
   };
 
   const handleDeleteSubscription = async (id: string) => {
@@ -217,11 +253,9 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
       };
 
       if (subForm.id) {
-          // Edit existing
           await dataService.updateSubscription(subForm.id, updateData);
           alert('تم تحديث بيانات الاشتراك بنجاح');
       } else {
-          // Create new
           const newSubscription: Subscription = {
               ...updateData,
               id: `sub_chef_${Date.now()}`,
@@ -266,29 +300,6 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
       setShowDayModal(false);
   };
 
-  const handlePostpone = async (sub: Subscription) => {
-      if(confirm('سيتم تأجيل وجبة اليوم وإضافة يوم إضافي للاشتراك. متابعة؟')) {
-          const newPostponedCount = (sub.postponedCount || 0) + 1;
-          const todayKey = new Date().toISOString().split('T')[0];
-          
-          const newConfigs = { ...sub.dailyConfigs };
-          if (newConfigs[todayKey]) {
-              newConfigs[todayKey].status = 'postponed';
-          } else {
-              newConfigs[todayKey] = { mealIds: [], status: 'postponed' };
-          }
-
-          await handleUpdateStatus(sub.id, {
-              status: 'active',
-              postponedCount: newPostponedCount,
-              dailyConfigs: newConfigs,
-              departureTime: '',
-              arrivalTime: ''
-          });
-          alert('تم التأجيل وتمديد المدة');
-      }
-  };
-
   const renderMonthlySchedule = (sub: Subscription) => {
       const startDate = new Date(sub.date);
       const totalDaysToShow = 30 + (sub.postponedCount || 0);
@@ -320,6 +331,7 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                             className={`p-2 rounded-xl text-center border transition-all ${!isEmployee ? 'cursor-pointer hover:scale-105' : ''} ${
                                 isToday ? 'bg-uh-gold/10 border-uh-gold' : 
                                 config?.status === 'postponed' ? 'bg-red-50 border-red-200' :
+                                config?.status === 'delivered' ? 'bg-green-50 border-green-200' :
                                 isPast ? 'bg-gray-50 border-gray-100' : 'bg-white border-gray-100'
                             }`}
                           >
@@ -342,7 +354,10 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                               {config?.status === 'postponed' && (
                                   <div className="text-[8px] text-red-500 font-bold mt-1">مؤجل ⏳</div>
                               )}
-                              {isToday && <div className="text-[8px] bg-uh-green text-white rounded mt-1 px-1">اليوم</div>}
+                              {config?.status === 'delivered' && (
+                                  <div className="text-[8px] text-green-600 font-bold mt-1">تم التسليم ✅</div>
+                              )}
+                              {isToday && config?.status !== 'delivered' && config?.status !== 'postponed' && <div className="text-[8px] bg-uh-green text-white rounded mt-1 px-1">اليوم</div>}
                           </div>
                       );
                   })}
@@ -351,11 +366,15 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
       );
   };
 
-  const filteredSubs = subscriptions.filter(s => filter === 'all' || s.status === filter);
+  const filteredSubs = subscriptions.filter(s => {
+      if (filter === 'all') return true;
+      const todayKey = new Date().toISOString().split('T')[0];
+      const todayStatus = s.dailyConfigs?.[todayKey]?.status || 'pending';
+      return todayStatus === filter;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-arabic" dir="rtl">
-      {/* Header */}
       <header className="bg-uh-dark text-white p-4 shadow-lg flex justify-between items-center sticky top-0 z-50">
           <div className="flex items-center gap-3">
               <div className="bg-uh-green p-2 rounded-lg"><ChefHat size={24} /></div>
@@ -379,10 +398,9 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
 
       <main className="flex-1 container mx-auto p-4 md:p-8 space-y-6">
           
-          {/* Dashboard Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                  <p className="text-xs text-gray-400 font-bold mb-1">الوجبات الموزعة</p>
+                  <p className="text-xs text-gray-400 font-bold mb-1">الوجبات الموزعة (تراكمي)</p>
                   <p className="text-2xl font-bold text-uh-green">{subscriptions.reduce((sum, s) => sum + (s.deliveredCount || 0), 0)}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -390,19 +408,19 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                   <p className="text-2xl font-bold text-uh-dark">{subscriptions.reduce((sum, s) => sum + (s.totalMeals - (s.deliveredCount || 0)), 0)}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                  <p className="text-xs text-gray-400 font-bold mb-1">الطلبات النشطة</p>
-                  <p className="text-2xl font-bold text-blue-500">{subscriptions.filter(s => s.status !== 'delivered').length}</p>
+                  <p className="text-xs text-gray-400 font-bold mb-1">إجمالي التأجيلات</p>
+                  <p className="text-2xl font-bold text-red-500">{subscriptions.reduce((sum, s) => sum + (s.postponedCount || 0), 0)}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-                  <p className="text-xs text-gray-400 font-bold mb-1">أيام التأجيل</p>
-                  <p className="text-2xl font-bold text-red-500">{subscriptions.reduce((sum, s) => sum + (s.postponedCount || 0), 0)}</p>
+                  <p className="text-xs text-gray-400 font-bold mb-1">نشط حالياً</p>
+                  <p className="text-2xl font-bold text-blue-500">{subscriptions.filter(s => s.status === 'active').length}</p>
               </div>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-              {['all', 'active', 'out-for-delivery', 'delivered'].map((f) => (
+              {['all', 'pending', 'prepared', 'out-for-delivery', 'delivered', 'postponed'].map((f) => (
                   <button key={f} onClick={() => setFilter(f as any)} className={`px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap ${filter === f ? 'bg-uh-dark text-white' : 'bg-white text-gray-500 border hover:bg-gray-50'}`}>
-                      {f === 'all' ? 'الكل' : f === 'active' ? 'بانتظار التجهيز' : f === 'out-for-delivery' ? 'في الطريق' : 'تم التسليم'}
+                      {f === 'all' ? 'الكل' : f === 'pending' ? 'بانتظار العمل' : f === 'prepared' ? 'جاهز للتوصيل' : f === 'out-for-delivery' ? 'في الطريق' : f === 'delivered' ? 'تم التسليم' : 'تم التأجيل'}
                   </button>
               ))}
           </div>
@@ -412,8 +430,8 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                   const customer = sub.user;
                   const isExpanded = expandedSubId === sub.id;
                   const todayKey = new Date().toISOString().split('T')[0];
-                  const todayConfig = sub.dailyConfigs?.[todayKey];
-                  const todayMeals = todayConfig?.mealIds?.filter(id => id).map(id => meals.find(m => m.id === id)) || [];
+                  const todayConfig = sub.dailyConfigs?.[todayKey] || { mealIds: [], status: 'pending' };
+                  const todayMeals = todayConfig.mealIds?.filter(id => id).map(id => meals.find(m => m.id === id)) || [];
                   const remaining = sub.totalMeals - (sub.deliveredCount || 0);
 
                   return (
@@ -423,20 +441,8 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                               <div className="p-6 border-l border-gray-50 relative group">
                                   {!isEmployee && (
                                       <div className="absolute top-2 left-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                                          <button 
-                                            onClick={() => handleOpenEdit(sub)}
-                                            className="p-2 text-uh-gold hover:bg-uh-gold/10 rounded-full transition"
-                                            title="تعديل الاشتراك"
-                                          >
-                                              <Edit3 size={18} />
-                                          </button>
-                                          <button 
-                                            onClick={() => handleDeleteSubscription(sub.id)}
-                                            className="p-2 text-red-400 hover:bg-red-50 rounded-full transition"
-                                            title="حذف الاشتراك"
-                                          >
-                                              <Trash2 size={18} />
-                                          </button>
+                                          <button onClick={() => handleOpenEdit(sub)} className="p-2 text-uh-gold hover:bg-uh-gold/10 rounded-full transition"><Edit3 size={18} /></button>
+                                          <button onClick={() => handleDeleteSubscription(sub.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-full transition"><Trash2 size={18} /></button>
                                       </div>
                                   )}
                                   
@@ -458,9 +464,9 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
 
                               <div className="p-6 bg-gray-50/50 border-l border-gray-50 cursor-pointer" onClick={() => setExpandedSubId(isExpanded ? null : sub.id)}>
                                   <div className="flex justify-between items-start mb-4">
-                                      <h4 className="text-xs font-bold text-gray-400 uppercase">مهمة لليوم ({sub.mealsPerDay} وجبة)</h4>
+                                      <h4 className="text-xs font-bold text-gray-400 uppercase">مهمة اليوم ({sub.mealsPerDay} وجبة)</h4>
                                       <div className="flex gap-1">
-                                          <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded-full font-bold">رصيد: {remaining}</span>
+                                          <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded-full font-bold">رصيد متبقي: {remaining}</span>
                                           {isExpanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                                       </div>
                                   </div>
@@ -480,8 +486,8 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                                   )}
 
                                   <div className="mt-3 space-y-2">
-                                      <div className="p-2 rounded-xl bg-red-50 text-red-700 text-[10px] font-bold border border-red-100">
-                                          🚨 حساسية: {customer?.allergies || 'لا يوجد'}
+                                      <div className="p-2 rounded-xl bg-red-50 text-red-700 text-[10px] font-bold border border-red-100 flex items-center gap-2">
+                                          <AlertTriangle size={12}/> حساسية: {customer?.allergies || 'لا يوجد'}
                                       </div>
                                       {sub.notes && (
                                           <div className="p-2 rounded-xl bg-uh-cream text-uh-dark text-[10px] font-bold border border-uh-gold/20 flex items-start gap-1">
@@ -492,25 +498,53 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
                                   </div>
                               </div>
 
-                              <div className="p-6 flex flex-col justify-between">
-                                  <div className="flex justify-between items-center mb-4">
-                                      <span className="text-[10px] text-gray-400 font-bold uppercase">الحالة: {sub.status}</span>
+                              <div className="p-6 flex flex-col justify-center gap-2">
+                                  <div className="flex justify-between items-center mb-1">
+                                      <span className="text-[10px] text-gray-400 font-bold uppercase">حالة اليوم:</span>
                                       <div className="flex items-center gap-1 text-uh-greenDark font-bold text-xs"><Clock size={12}/> {sub.deliverySlot}</div>
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-2">
-                                      {sub.status !== 'delivered' ? (
-                                          <>
-                                              {sub.status === 'active' && (
-                                                  <button onClick={() => handleUpdateStatus(sub.id, { status: 'out-for-delivery', departureTime: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}) })} className="col-span-2 bg-uh-dark text-white py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition shadow-sm"><Truck size={16}/> خروج الطلب</button>
-                                              )}
-                                              {sub.status === 'out-for-delivery' && (
-                                                  <button onClick={() => handleUpdateStatus(sub.id, { status: 'delivered', arrivalTime: new Date().toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}), deliveredCount: (sub.deliveredCount || 0) + sub.mealsPerDay })} className="col-span-2 bg-uh-green text-white py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-uh-greenDark transition shadow-md"><CheckCircle size={16}/> تم التسليم</button>
-                                              )}
-                                              <button onClick={() => handlePostpone(sub)} className="col-span-2 border border-red-200 text-red-500 py-2 rounded-xl text-xs font-bold hover:bg-red-50 transition">تأجيل لليوم (تمديد الاشتراك)</button>
-                                          </>
+                                  <div className="flex flex-col gap-2">
+                                      {todayConfig.status === 'delivered' ? (
+                                          <div className="bg-green-50 text-green-700 py-3 rounded-2xl text-center font-bold text-sm border border-green-200">تم التسليم بنجاح ✅</div>
+                                      ) : todayConfig.status === 'postponed' ? (
+                                          <div className="bg-red-50 text-red-700 py-3 rounded-2xl text-center font-bold text-sm border border-red-200">تم التأجيل لليوم ⏳</div>
                                       ) : (
-                                          <div className="col-span-2 bg-green-50 text-green-700 py-2 rounded-xl text-center font-bold text-xs border border-green-100 animate-pulse">اكتمل التوصيل اليوم ✅</div>
+                                          <>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                  <button 
+                                                      onClick={() => handleDailyStatusUpdate(sub, 'prepared')}
+                                                      className={`py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition border ${todayConfig.status === 'prepared' ? 'bg-uh-gold text-uh-dark border-uh-gold shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'}`}
+                                                  >
+                                                      <Utensils size={14}/> تم التجهيز
+                                                  </button>
+                                                  <button 
+                                                      onClick={() => handleDailyStatusUpdate(sub, 'out-for-delivery')}
+                                                      className={`py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition border ${todayConfig.status === 'out-for-delivery' ? 'bg-uh-dark text-white border-uh-dark shadow-sm' : 'bg-white text-gray-500 hover:bg-gray-50 border-gray-200'}`}
+                                                  >
+                                                      <Truck size={14}/> خروج الطلب
+                                                  </button>
+                                              </div>
+                                              
+                                              <button 
+                                                onClick={() => handleDailyStatusUpdate(sub, 'delivered')}
+                                                className="bg-uh-green text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-uh-greenDark transition shadow-md active:scale-95"
+                                              >
+                                                  <CheckCircle size={18}/> تسليم الوجبات اليوم ({sub.mealsPerDay})
+                                              </button>
+
+                                              <button 
+                                                onClick={() => { if(confirm('هل تود تأجيل وجبات هذا العميل لليوم؟ سيتم تمديد اشتراكه تلقائياً.')) handleDailyStatusUpdate(sub, 'postponed') }}
+                                                className="border border-red-200 text-red-500 py-2 rounded-xl text-xs font-bold hover:bg-red-50 transition"
+                                              >
+                                                  تأجيل اليوم (تمديد المدة)
+                                              </button>
+                                          </>
+                                      )}
+                                      
+                                      {/* Rollback status if needed (Only for Kitchen/Chef) */}
+                                      {!isEmployee && (todayConfig.status === 'delivered' || todayConfig.status === 'postponed') && (
+                                          <button onClick={() => handleDailyStatusUpdate(sub, 'pending')} className="text-[10px] text-gray-400 hover:text-uh-dark underline mt-2">تراجع عن الحالة (إعادة تعيين)</button>
                                       )}
                                   </div>
                               </div>
@@ -523,29 +557,13 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
           </div>
       </main>
 
-      {/* Modals triggered from ChefDashboard */}
       {showAddModal && (
-          <SubscriptionModal 
-            mode="ADD" 
-            onClose={() => setShowAddModal(false)} 
-            subForm={subForm} 
-            setSubForm={setSubForm} 
-            plans={plans} 
-            handleSaveSub={handleSaveSub} 
-          />
+          <SubscriptionModal mode="ADD" onClose={() => setShowAddModal(false)} subForm={subForm} setSubForm={setSubForm} plans={plans} handleSaveSub={handleSaveSub} />
       )}
       {showEditModal && (
-          <SubscriptionModal 
-            mode="EDIT" 
-            onClose={() => setShowEditModal(false)} 
-            subForm={subForm} 
-            setSubForm={setSubForm} 
-            plans={plans} 
-            handleSaveSub={handleSaveSub} 
-          />
+          <SubscriptionModal mode="EDIT" onClose={() => setShowEditModal(false)} subForm={subForm} setSubForm={setSubForm} plans={plans} handleSaveSub={handleSaveSub} />
       )}
 
-      {/* Day Editing Modal */}
       {showDayModal && activeDayEdit && !isEmployee && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
               <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl relative">
@@ -591,7 +609,3 @@ export const ChefDashboard: React.FC<ChefDashboardProps> = ({ onLogout, user }) 
     </div>
   );
 };
-
-const Minus: React.FC<{size?: number}> = ({size = 24}) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-);
