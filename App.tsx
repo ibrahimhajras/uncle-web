@@ -111,10 +111,33 @@ const App: React.FC = () => {
   // Reset scroll on view change & Meta Tags Logic
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (['HOME', 'STORE', 'SUBSCRIPTION', 'PROFILE', 'CART'].includes(currentView) && !initialPlanId) {
+    
+    const params = new URLSearchParams(window.location.search);
+    
+    if (currentView !== 'SUBSCRIPTION' || !initialPlanId) {
+        if (params.has('planId')) {
+            window.history.pushState({}, '', window.location.pathname);
+        }
+    }
+    
+    if (currentView !== 'MEAL_DETAIL' || !selectedMeal) {
+        if (params.has('mealId')) {
+            window.history.pushState({}, '', window.location.pathname);
+        }
+    }
+
+    if (currentView !== 'MEAL_DETAIL') {
+        setSelectedMeal(null);
+    }
+
+    if (currentView !== 'SUBSCRIPTION') {
+        setInitialPlanId(null);
+    }
+
+    if (['HOME', 'STORE', 'SUBSCRIPTION', 'PROFILE', 'CART'].includes(currentView) && !initialPlanId && !selectedMeal) {
        resetMetaTags();
     }
-  }, [currentView, initialPlanId]);
+  }, [currentView, initialPlanId, selectedMeal]);
 
   // Auth Handlers
   const handleLogin = (loggedInUser: UserProfile) => {
@@ -184,6 +207,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handlePlanClick = async (planId: string) => {
+    const allPlans = await dataService.getSubscriptionPlans();
+    const plan = allPlans.find(p => p.id === planId);
+    if (plan) {
+      setInitialPlanId(planId);
+      setCurrentView('SUBSCRIPTION');
+      updateMetaTags(
+          `اشتراك ${plan.title} | Uncle Healthy`,
+          `اشترك في ${plan.title} بسعر ${plan.price} د.أ. ${plan.features.slice(0, 2).join('، ')}.`,
+          plan.image || "https://i.ibb.co/nqmV5jzX/23.png"
+      );
+      window.history.pushState({}, '', `?planId=${plan.id}`);
+    }
+  };
+
   const renderView = () => {
     const safeContent = content || {
         privacyPolicy: '', returnPolicy: '', paymentPolicy: '',
@@ -205,7 +243,7 @@ const App: React.FC = () => {
         }
         return <Profile user={user} onMealClick={handleMealClick} onAddToCart={handleAddToCart} />;
       case 'SUBSCRIPTION':
-        return <Subscription initialPlanId={initialPlanId} />;
+        return <Subscription initialPlanId={initialPlanId} onPlanClick={handlePlanClick} onClearInitialPlan={() => setInitialPlanId(null)} />;
       case 'CART':
         return (
             <Cart 

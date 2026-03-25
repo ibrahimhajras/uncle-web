@@ -7,9 +7,11 @@ import { OptimizedImage } from './OptimizedImage';
 
 interface SubscriptionProps {
     initialPlanId?: string | null;
+    onPlanClick?: (planId: string) => void;
+    onClearInitialPlan?: () => void;
 }
 
-export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId }) => {
+export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId, onPlanClick, onClearInitialPlan }) => {
   const [step, setStep] = useState(1);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -39,15 +41,25 @@ export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId }) => 
       if (initialPlanId && plans.length > 0) {
           const exists = plans.some(p => p.id === initialPlanId);
           if (exists) {
-              handleSelectPlan(initialPlanId);
+              setSelectedPlanId(initialPlanId);
+              setSubData(prev => ({ ...prev, duration: initialPlanId }));
+              setStep(2);
           }
+      } else if (!initialPlanId) {
+          setSelectedPlanId(null);
+          setStep(1);
       }
   }, [initialPlanId, plans]);
 
   const handleSelectPlan = (id: string) => {
-    setSelectedPlanId(id);
-    setSubData(prev => ({ ...prev, duration: id }));
-    setStep(2);
+    if (onPlanClick) {
+        onPlanClick(id);
+    } else {
+        setSelectedPlanId(id);
+        setSubData(prev => ({ ...prev, duration: id }));
+        setStep(2);
+        window.history.pushState({}, '', `?planId=${id}`);
+    }
     setDiscount(0);
     setAppliedPromo(null);
     setPromoCode('');
@@ -286,7 +298,18 @@ export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId }) => 
                 </div>
 
                 <div className="pt-4 flex gap-4">
-                    <button type="button" onClick={() => setStep(1)} className="px-6 py-3 text-gray-500 hover:bg-gray-100 rounded-xl">رجوع</button>
+                    <button 
+                        type="button" 
+                        onClick={() => {
+                            setStep(1);
+                            setSelectedPlanId(null);
+                            if (onClearInitialPlan) onClearInitialPlan();
+                            window.history.pushState({}, '', window.location.pathname);
+                        }} 
+                        className="px-6 py-3 text-gray-500 hover:bg-gray-100 rounded-xl"
+                    >
+                        رجوع
+                    </button>
                     <button type="submit" disabled={loading} className="flex-1 bg-uh-green text-white font-bold py-3 rounded-xl hover:bg-uh-greenDark shadow-lg disabled:opacity-50">
                         {loading ? 'جاري المعالجة...' : 'تأكيد الاشتراك'}
                     </button>
