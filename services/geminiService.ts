@@ -11,7 +11,7 @@ export const generateWeeklyPlan = async (user: UserProfile): Promise<DailyPlan[]
   const mealList = currentMeals.map(m => `${m.id}: ${m.name} (${m.macros.calories}kcal)`).join(', ');
   
   // Use environment variable exclusively
-  const apiKey = process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
 
   if (!apiKey) {
       console.warn("Gemini API Key is missing in environment variables.");
@@ -104,7 +104,7 @@ export const chatWithNutritionist = async (history: {role: string, text: string}
     const currentMeals = await dataService.getMeals();
     const menuContext = currentMeals.map(m => `- ${m.name}: ${m.description} (${m.macros.calories} Cal, ${m.macros.protein}g Protein). Price: ${m.price}`).join('\n');
 
-    const apiKey = process.env.API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
 
     if (!apiKey) {
         return "عذراً، خدمة الذكاء الاصطناعي متوقفة حالياً.";

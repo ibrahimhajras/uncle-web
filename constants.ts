@@ -92,6 +92,36 @@ export const MEALS: Meal[] = [
   }
 ];
 
+export const PLANS = [
+  {
+    id: 'p1',
+    title: 'الباقة الأسبوعية',
+    price: 45,
+    image: 'https://i.ibb.co/6J8BHK9s/28.jpg',
+    features: ['6 وجبات صحية متنوعة', 'توصيل مجاني يومياً', 'استشارة غذائية أولية'],
+    durationLabel: 'Weekly',
+    isPopular: false
+  },
+  {
+    id: 'p2',
+    title: 'الباقة الشهرية الاقتصادية',
+    price: 160,
+    image: 'https://i.ibb.co/nqmV5jzX/23.png',
+    features: ['24 وجبة صحية (6 أيام/أسبوع)', 'توصيل مجاني', 'متابعة أسبوعية مع أخصائي'],
+    durationLabel: 'Monthly',
+    isPopular: true
+  },
+  {
+    id: 'p3',
+    title: 'باقة كبار الشخصيات',
+    price: 220,
+    image: 'https://i.ibb.co/6J8BHK9s/28.jpg',
+    features: ['30 وجبة فاخرة (يومياً)', 'توصيل في الوقت المفضل', 'تعديل المكونات حسب الطلب'],
+    durationLabel: 'Monthly VIP',
+    isPopular: false
+  }
+];
+
 export const INITIAL_USER_PROFILE = {
   id: '',
   name: '',

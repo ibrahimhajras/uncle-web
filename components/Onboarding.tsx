@@ -48,7 +48,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
     try {
       // API key is now obtained exclusively from environment variables
-      const apiKey = process.env.API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
         setMessages(prev => [...prev, { role: 'model', text: 'عذراً، خدمة المساعد الذكي غير متاحة حالياً.' }]);

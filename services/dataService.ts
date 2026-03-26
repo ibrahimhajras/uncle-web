@@ -1,67 +1,156 @@
 
 import { Order, Subscription, SiteContent, Meal, SubscriptionPlan, PromoCode, AnalyticsData } from '../types';
-import { MEALS } from '../constants';
-import { db } from './firebase';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, increment } from 'firebase/firestore';
+import { MEALS, PLANS } from '../constants';
+import { db, auth } from './firebase';
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, increment, getDocFromServer } from 'firebase/firestore';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string;
+    email?: string | null;
+    emailVerified?: boolean;
+    isAnonymous?: boolean;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
 
 // Local cache only for configuration items (Plans/Promos/Content)
 let localPlans: SubscriptionPlan[] = [];
 let localPromos: PromoCode[] = [];
 
 export const dataService = {
+  // Connection test
+  testConnection: async () => {
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('the client is offline')) {
+        console.error("Please check your Firebase configuration.");
+      }
+    }
+  },
+
   // Orders
   getOrders: async (): Promise<Order[]> => {
+    const path = "orders";
     try {
       const orders: Order[] = [];
-      const querySnapshot = await getDocs(collection(db, "orders"));
+      const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         orders.push(doc.data() as Order);
       });
       return orders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } catch (e) {
-      console.error("Failed to fetch orders from DB:", e);
+      handleFirestoreError(e, OperationType.GET, path);
       return [];
     }
   },
   
   saveOrder: async (order: Order) => {
-    await setDoc(doc(db, "orders", order.id), order);
+    const path = `orders/${order.id}`;
+    try {
+        await setDoc(doc(db, "orders", order.id), order);
+    } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, path);
+    }
   },
   
   updateOrderStatus: async (id: string, status: 'pending' | 'completed' | 'cancelled') => {
-    const orderRef = doc(db, "orders", id);
-    await updateDoc(orderRef, { status: status });
+    const path = `orders/${id}`;
+    try {
+        const orderRef = doc(db, "orders", id);
+        await updateDoc(orderRef, { status: status });
+    } catch (e) {
+        handleFirestoreError(e, OperationType.UPDATE, path);
+    }
   },
 
   // Subscriptions
   getSubscriptions: async (): Promise<Subscription[]> => {
+    const path = "subscriptions";
     try {
       const subs: Subscription[] = [];
-      const querySnapshot = await getDocs(collection(db, "subscriptions"));
+      const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         subs.push(doc.data() as Subscription);
       });
       return subs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     } catch (e) {
-      console.error("Failed to fetch subscriptions from DB:", e);
+      handleFirestoreError(e, OperationType.GET, path);
       return [];
     }
   },
   
   saveSubscription: async (sub: Subscription) => {
     const id = sub.id || `sub_${Date.now()}`;
+    const path = `subscriptions/${id}`;
     const subWithId = { ...sub, id, status: 'active', deliveredCount: 0, postponedCount: 0 };
-    await setDoc(doc(db, "subscriptions", id), subWithId);
+    try {
+        await setDoc(doc(db, "subscriptions", id), subWithId);
+    } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, path);
+    }
   },
 
   updateSubscription: async (id: string, updates: Partial<Subscription>) => {
-    const subRef = doc(db, "subscriptions", id);
-    await updateDoc(subRef, updates);
+    const path = `subscriptions/${id}`;
+    try {
+        const subRef = doc(db, "subscriptions", id);
+        await updateDoc(subRef, updates);
+    } catch (e) {
+        handleFirestoreError(e, OperationType.UPDATE, path);
+    }
   },
 
   deleteSubscription: async (id: string) => {
-    const subRef = doc(db, "subscriptions", id);
-    await deleteDoc(subRef);
+    const path = `subscriptions/${id}`;
+    try {
+        const subRef = doc(db, "subscriptions", id);
+        await deleteDoc(subRef);
+    } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, path);
+    }
   },
 
   // Content
@@ -93,6 +182,7 @@ export const dataService = {
         linkIOS: ''
     };
 
+    const path = "content/main_content";
     try {
       const docRef = doc(db, "content", "main_content");
       const docSnap = await getDoc(docRef);
@@ -116,19 +206,21 @@ export const dataService = {
   },
   
   saveContent: async (content: SiteContent): Promise<boolean> => {
+    const path = "content/main_content";
     try {
       await setDoc(doc(db, "content", "main_content"), content);
       return true;
     } catch (e) {
-      console.warn("Failed to save content", e);
+      handleFirestoreError(e, OperationType.WRITE, path);
       return false;
     }
   },
 
   // Meals
   getMeals: async (): Promise<Meal[]> => {
+    const path = "meals";
     try {
-      const querySnapshot = await getDocs(collection(db, "meals"));
+      const querySnapshot = await getDocs(collection(db, path));
       const meals: Meal[] = [];
       querySnapshot.forEach((doc) => {
         meals.push(doc.data() as Meal);
@@ -144,14 +236,25 @@ export const dataService = {
       }
       return meals;
     } catch (e) {
+      handleFirestoreError(e, OperationType.GET, path);
       return MEALS;
     }
   },
   addMeal: async (meal: Meal) => {
-    await setDoc(doc(db, "meals", meal.id), meal);
+    const path = `meals/${meal.id}`;
+    try {
+        await setDoc(doc(db, "meals", meal.id), meal);
+    } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, path);
+    }
   },
   deleteMeal: async (id: string) => {
-    await deleteDoc(doc(db, "meals", id));
+    const path = `meals/${id}`;
+    try {
+        await deleteDoc(doc(db, "meals", id));
+    } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, path);
+    }
   },
 
   // Analytics Functions
@@ -164,6 +267,7 @@ export const dataService = {
           visitHours: {}
       };
 
+      const path = "analytics/main_stats";
       try {
           const docRef = doc(db, "analytics", "main_stats");
           const docSnap = await getDoc(docRef);
@@ -182,13 +286,13 @@ export const dataService = {
               return defaultAnalytics;
           }
       } catch (e) {
-          console.error("Error fetching analytics", e);
+          handleFirestoreError(e, OperationType.GET, path);
           return defaultAnalytics;
       }
   },
 
   logVisit: async () => {
-      // Use setDoc with merge to safely update counters
+      const path = "analytics/main_stats";
       try {
           const docRef = doc(db, "analytics", "main_stats");
           const currentHour = new Date().getHours();
@@ -198,10 +302,11 @@ export const dataService = {
                   [currentHour]: increment(1)
               }
           }, { merge: true });
-      } catch(e) { console.error("Track visit failed", e) }
+      } catch(e) { handleFirestoreError(e, OperationType.WRITE, path); }
   },
 
   logMealView: async (mealId: string) => {
+      const path = "analytics/main_stats";
       try {
           const docRef = doc(db, "analytics", "main_stats");
           await setDoc(docRef, {
@@ -209,27 +314,31 @@ export const dataService = {
                   [mealId]: increment(1)
               }
           }, { merge: true });
-      } catch(e) { console.error("Track meal view failed", e) }
+      } catch(e) { handleFirestoreError(e, OperationType.WRITE, path); }
   },
 
   logAppClick: async (platform: 'android' | 'ios') => {
+      const path = "analytics/main_stats";
       try {
           const docRef = doc(db, "analytics", "main_stats");
           await setDoc(docRef, {
               [platform === 'android' ? 'androidClicks' : 'iosClicks']: increment(1)
           }, { merge: true });
-      } catch(e) { console.error("Track app click failed", e) }
+      } catch(e) { handleFirestoreError(e, OperationType.WRITE, path); }
   },
 
   // Subscription Plans
   getSubscriptionPlans: async (): Promise<SubscriptionPlan[]> => {
     let plans: SubscriptionPlan[] = [];
+    const path = "plans";
     try {
-      const querySnapshot = await getDocs(collection(db, "plans"));
+      const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         plans.push(doc.data() as SubscriptionPlan);
       });
-    } catch (e) {}
+    } catch (e) {
+        handleFirestoreError(e, OperationType.GET, path);
+    }
 
     localPlans.forEach(lp => {
         const idx = plans.findIndex(p => p.id === lp.id);
@@ -238,7 +347,12 @@ export const dataService = {
     });
       
     if (plans.length === 0) {
-         return [];
+         try {
+             for (const p of PLANS) {
+                 await setDoc(doc(db, "plans", p.id), p);
+             }
+         } catch(err) {}
+         return PLANS;
     }
     return plans;
   },
@@ -247,23 +361,32 @@ export const dataService = {
     const existingIndex = localPlans.findIndex(p => p.id === plan.id);
     if (existingIndex >= 0) localPlans[existingIndex] = plan;
     else localPlans.push(plan);
-    try { await setDoc(doc(db, "plans", plan.id), plan); } catch (e) {}
+    const path = `plans/${plan.id}`;
+    try { await setDoc(doc(db, "plans", plan.id), plan); } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, path);
+    }
   },
 
   deleteSubscriptionPlan: async (id: string) => {
     localPlans = localPlans.filter(p => p.id !== id);
-    try { await deleteDoc(doc(db, "plans", id)); } catch (e) {}
+    const path = `plans/${id}`;
+    try { await deleteDoc(doc(db, "plans", id)); } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, path);
+    }
   },
 
   // Promo Codes
   getPromoCodes: async (): Promise<PromoCode[]> => {
     let promos: PromoCode[] = [];
+    const path = "promos";
     try {
-      const querySnapshot = await getDocs(collection(db, "promos"));
+      const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         promos.push(doc.data() as PromoCode);
       });
-    } catch (e) {}
+    } catch (e) {
+        handleFirestoreError(e, OperationType.GET, path);
+    }
     localPromos.forEach(lp => {
          const idx = promos.findIndex(p => p.id === lp.id);
          if (idx >= 0) promos[idx] = lp;
@@ -276,12 +399,18 @@ export const dataService = {
     const idx = localPromos.findIndex(p => p.id === promo.id);
     if (idx >= 0) localPromos[idx] = promo;
     else localPromos.push(promo);
-    try { await setDoc(doc(db, "promos", promo.id), promo); } catch (e) {}
+    const path = `promos/${promo.id}`;
+    try { await setDoc(doc(db, "promos", promo.id), promo); } catch (e) {
+        handleFirestoreError(e, OperationType.WRITE, path);
+    }
   },
 
   deletePromoCode: async (id: string) => {
     localPromos = localPromos.filter(p => p.id !== id);
-    try { await deleteDoc(doc(db, "promos", id)); } catch (e) {}
+    const path = `promos/${id}`;
+    try { await deleteDoc(doc(db, "promos", id)); } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, path);
+    }
   },
 
   verifyPromoCode: async (code: string, type: 'MEALS' | 'SUBSCRIPTION'): Promise<PromoCode | null> => {

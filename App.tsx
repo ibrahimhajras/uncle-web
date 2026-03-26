@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { Home } from './components/Home';
 import { Onboarding } from './components/Onboarding';
@@ -24,6 +25,17 @@ const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [content, setContent] = useState<SiteContent | null>(null);
   const [initialPlanId, setInitialPlanId] = useState<string | null>(null);
+
+  // Helper to handle view changes with URL updates
+  const handleSetView = (view: PageView) => {
+    setCurrentView(view);
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', view);
+    // Remove specific IDs when switching views unless it's the current view's ID
+    if (view !== 'MEAL_DETAIL') url.searchParams.delete('mealId');
+    if (view !== 'SUBSCRIPTION') url.searchParams.delete('planId');
+    window.history.pushState({}, '', url.toString());
+  };
 
   // Helper to update Meta Tags dynamically
   const updateMetaTags = (title: string, description: string, image: string) => {
@@ -60,21 +72,23 @@ const App: React.FC = () => {
 
   // Fetch content on mount and Track Visit
   useEffect(() => {
-    const fetchContent = async () => {
+    const init = async () => {
+        await dataService.testConnection();
         const c = await dataService.getContent();
         setContent(c);
         // Log visit
         dataService.logVisit();
     };
-    fetchContent();
+    init();
   }, []);
 
-  // Handle Deep Linking (URL Query Params) on Mount
+  // Handle Deep Linking (URL Query Params) on Mount and Popstate
   useEffect(() => {
       const handleDeepLinks = async () => {
           const params = new URLSearchParams(window.location.search);
           const mealId = params.get('mealId');
           const planId = params.get('planId');
+          const viewParam = params.get('view') as PageView | null;
 
           if (mealId) {
               const allMeals = await dataService.getMeals();
@@ -102,11 +116,20 @@ const App: React.FC = () => {
                   );
                   return;
               }
+          } else if (viewParam) {
+              setCurrentView(viewParam);
           }
-          resetMetaTags();
+          
+          if (!mealId && !planId) {
+            resetMetaTags();
+          }
       };
+
       handleDeepLinks();
-  }, []);
+      
+      window.addEventListener('popstate', handleDeepLinks);
+      return () => window.removeEventListener('popstate', handleDeepLinks);
+  }, []); // Remove currentView dependency
 
   // Reset scroll on view change & Meta Tags Logic
   useEffect(() => {
@@ -295,9 +318,9 @@ const App: React.FC = () => {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <Layout 
-          setView={setCurrentView} 
+          setView={handleSetView} 
           currentView={currentView} 
           isLoggedIn={user.hasProfile} 
           onLogout={handleLogout}
@@ -306,7 +329,7 @@ const App: React.FC = () => {
         {renderView()}
       </Layout>
       <ChatWidget />
-    </>
+    </ErrorBoundary>
   );
 };
 

@@ -127,7 +127,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId, onPla
             } as SubscriptionModel);
 
             // WhatsApp Integration
-            const whatsappNumber = '962788078118';
+            const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '962788078118';
             const message = `مرحباً Uncle Healthy، أود الاشتراك في باقة: ${selectedPlan.title}
 التفاصيل:
 - العنوان: ${subData.address}

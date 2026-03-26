@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "A single meal order from the store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user": { "$ref": "UserProfile" },
+        "items": { "type": "array", "items": { "type": "object" } },
+        "total": { "type": "number" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "date": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "completed", "cancelled"] },
+        "promoCode": { "type": "string" },
+        "discountApplied": { "type": "number" },
+        "tax": { "type": "number" }
+      },
+      "required": ["id", "user", "items", "total", "address", "phone", "date", "status"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "A recurring meal subscription plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "duration": { "type": "string" },
+        "deliverySlot": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "notes": { "type": "string" },
+        "user": { "$ref": "UserProfile" },
+        "date": { "type": "string" },
+        "planTitle": { "type": "string" },
+        "pricePaid": { "type": "number" },
+        "mealsPerDay": { "type": "number" },
+        "totalMeals": { "type": "number" },
+        "deliveredCount": { "type": "number" },
+        "postponedCount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "postponed", "delivered", "out-for-delivery", "cancelled"] }
+      },
+      "required": ["id", "duration", "deliverySlot", "address", "phone", "user", "date", "mealsPerDay", "totalMeals", "status"]
+    },
+    "Meal": {
+      "title": "Meal",
+      "description": "A specific meal item available in the store",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "price": { "type": "number" },
+        "macros": { "type": "object" },
+        "ingredients": { "type": "array", "items": { "type": "string" } },
+        "instructions": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "description", "image", "price", "macros"]
+    },
+    "SubscriptionPlan": {
+      "title": "SubscriptionPlan",
+      "description": "A predefined subscription plan configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "image": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "durationLabel": { "type": "string" },
+        "isPopular": { "type": "boolean" }
+      },
+      "required": ["id", "title", "price", "features", "durationLabel"]
+    },
+    "PromoCode": {
+      "title": "PromoCode",
+      "description": "A discount code for meals or subscriptions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "type": { "type": "string", "enum": ["MEALS", "SUBSCRIPTION"] },
+        "discountAmount": { "type": "number" },
+        "isPercentage": { "type": "boolean" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "code", "type", "discountAmount", "isPercentage", "isActive"]
+    },
+    "AnalyticsData": {
+      "title": "AnalyticsData",
+      "description": "Site-wide usage statistics",
+      "type": "object",
+      "properties": {
+        "totalVisits": { "type": "number" },
+        "androidClicks": { "type": "number" },
+        "iosClicks": { "type": "number" },
+        "mealViews": { "type": "object" },
+        "visitHours": { "type": "object" }
+      }
+    },
+    "SiteContent": {
+      "title": "SiteContent",
+      "description": "Dynamic content for the landing page",
+      "type": "object",
+      "properties": {
+        "heroTitle": { "type": "string" },
+        "heroSubtitle": { "type": "string" },
+        "heroImage": { "type": "string" },
+        "missionTitle": { "type": "string" },
+        "missionText": { "type": "string" },
+        "featuresList": { "type": "array", "items": { "type": "string" } },
+        "contactPhone": { "type": "string" },
+        "privacyPolicy": { "type": "string" },
+        "returnPolicy": { "type": "string" },
+        "paymentPolicy": { "type": "string" }
+      }
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account information and health profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "age": { "type": "string" },
+        "gender": { "type": "string" },
+        "height": { "type": "string" },
+        "weight": { "type": "string" },
+        "goal": { "type": "string" },
+        "allergies": { "type": "string" },
+        "phone": { "type": "string" },
+        "hasProfile": { "type": "boolean" },
+        "isAdmin": { "type": "boolean" },
+        "isChef": { "type": "boolean" },
+        "isEmployee": { "type": "boolean" }
+      },
+      "required": ["id", "name", "hasProfile"]
+    }
+  },
+  "firestore": {
+    "orders": {
+      "schema": "Order",
+      "description": "Collection of customer orders"
+    },
+    "subscriptions": {
+      "schema": "Subscription",
+      "description": "Collection of active and past subscriptions"
+    },
+    "meals": {
+      "schema": "Meal",
+      "description": "Collection of available meals"
+    },
+    "plans": {
+      "schema": "SubscriptionPlan",
+      "description": "Collection of subscription plan options"
+    },
+    "promos": {
+      "schema": "PromoCode",
+      "description": "Collection of discount codes"
+    },
+    "analytics": {
+      "schema": "AnalyticsData",
+      "description": "Collection for site analytics"
+    },
+    "content": {
+      "schema": "SiteContent",
+      "description": "Collection for dynamic site content"
+    },
+    "users": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles"
+    }
+  }
+}
