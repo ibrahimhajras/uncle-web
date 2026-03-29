@@ -14,9 +14,15 @@ const firebaseConfig = {
   firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
 };
 
+// Validate config
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API Key is missing. Please set VITE_FIREBASE_API_KEY in your environment variables.");
+}
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+export const analytics = typeof window !== 'undefined' && firebaseConfig.measurementId ? getAnalytics(app) : null;
 export const auth = getAuth(app);
+
 
