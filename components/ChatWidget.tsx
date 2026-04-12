@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, X, Send, User, Bot } from 'lucide-react';
-import { chatWithNutritionist } from '../services/geminiService';
+import { chatWithAI } from '../services/aiService';
 
 export const ChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([
-      { role: 'model', text: 'أهلاً بك! أنا مساعد Uncle Healthy الذكي. كيف يمكنني مساعدتك اليوم في اختيار وجبتك أو نصيحتك الغذائية؟' }
+      { role: 'model', text: 'أهلاً بك! أنا مساعد Uncle Healthy. كيف يمكنني مساعدتك في الإجابة على استفساراتك حول الموقع والوجبات؟' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,10 +29,15 @@ export const ChatWidget: React.FC = () => {
       setMessages(prev => [...prev, { role: 'user', text: userText }]);
       setLoading(true);
 
-      const response = await chatWithNutritionist(messages, userText);
-      
-      setMessages(prev => [...prev, { role: 'model', text: response || 'عذراً، لم أستطع الإجابة.' }]);
-      setLoading(false);
+      try {
+          const response = await chatWithAI(messages, userText);
+          setMessages(prev => [...prev, { role: 'model', text: response || 'عذراً، لم أستطع الإجابة.' }]);
+      } catch (error) {
+          console.error("Chat Error:", error);
+          setMessages(prev => [...prev, { role: 'model', text: 'عذراً، حدث خطأ غير متوقع.' }]);
+      } finally {
+          setLoading(false);
+      }
   };
 
   return (

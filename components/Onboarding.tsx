@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { UserProfile, DailyPlan } from '../types';
 import { INITIAL_USER_PROFILE } from '../constants';
 import { MessageSquare, FileText, Send, User, ChevronLeft, Lock } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
-import { generateWeeklyPlan } from '../services/geminiService';
+import { generateWeeklyPlan } from '../services/aiService';
 import { authService } from '../services/authService';
 import { dataService } from '../services/dataService';
 
@@ -19,12 +18,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   
-  // AI Chat State
-  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([
-    { role: 'model', text: 'أهلاً بك في Uncle Healthy! أنا مساعدك الذكي للتغذية. سأطرح عليك بعض الأسئلة لبناء نظامك الغذائي المثالي. ما هو اسمك؟' }
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+
 
   // Form Handlers
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -37,72 +31,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     setMode('PASSWORD'); // Move to password step
   };
 
-  // AI Handlers
-  const handleAISend = async () => {
-    if (!input.trim()) return;
 
-    const userMsg = input;
-    setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setLoading(true);
-
-    try {
-      // API key is now obtained exclusively from environment variables
-      const apiKey = process.env.GEMINI_API_KEY;
-
-      if (!apiKey) {
-        setMessages(prev => [...prev, { role: 'model', text: 'عذراً، خدمة المساعد الذكي غير متاحة حالياً.' }]);
-        setLoading(false);
-        return;
-      }
-
-      const ai = new GoogleGenAI({ apiKey: apiKey });
-      const chat = ai.chats.create({
-        model: 'gemini-3-flash-preview', // Basic Text Task
-        config: {
-            systemInstruction: `
-            You are a friendly nutritionist AI for "Uncle Healthy". 
-            Your goal is to collect these fields: Name, Age, Gender, Height (cm), Weight (kg), Goal (Lose/Gain/Muscle), Allergies, Phone.
-            
-            Current conversation history is implied.
-            If the user has provided ALL fields, respond with a JSON object ONLY in this format:
-            { "COMPLETE": true, "data": { "name": "...", "age": "...", "gender": "...", "height": "...", "weight": "...", "goal": "...", "allergies": "...", "phone": "..." } }
-            
-            If information is missing, ask for the missing piece politely in Arabic.
-            Do not output JSON unless complete.
-            `
-        }
-      });
-      
-      const historyText = messages.map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.text}`).join('\n');
-      const prompt = `${historyText}\nUser: ${userMsg}\nAI:`;
-
-      const result = await chat.sendMessage({ message: prompt });
-      const text = result.text || '';
-      
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-            const json = JSON.parse(jsonMatch[0]);
-            if (json.COMPLETE && json.data) {
-                setLoading(false);
-                setFormData({ ...formData, ...json.data });
-                setMode('PASSWORD'); // Move to password step
-                return;
-            }
-        } catch (e) {
-            // ignore
-        }
-      }
-
-      setMessages(prev => [...prev, { role: 'model', text: text.replace(/\{[\s\S]*\}/, '') }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: 'حدث خطأ في الاتصال، يرجى المحاولة مرة أخرى أو التأكد من الإعدادات.' }]);
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFinalRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,72 +74,22 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   if (mode === 'SELECT') {
     return (
       <div className="max-w-2xl mx-auto py-12 text-center space-y-8 animate-fade-in">
-        <h2 className="text-3xl font-brand text-uh-dark">كيف تفضل البدء؟</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <button 
-            onClick={() => setMode('AI')}
-            className="p-8 bg-white rounded-2xl shadow-md hover:shadow-xl transition border-2 border-transparent hover:border-uh-green group"
-          >
-            <MessageSquare size={48} className="mx-auto mb-4 text-uh-gold group-hover:scale-110 transition" />
-            <h3 className="text-xl font-bold mb-2">التحدث مع الذكاء الاصطناعي</h3>
-            <p className="text-gray-500 text-sm">محادثة تفاعلية لتحديد احتياجاتك بدقة</p>
-          </button>
-
+        <h2 className="text-3xl font-brand text-uh-dark">ابدأ رحلتك الصحية معنا</h2>
+        <div className="max-w-md mx-auto">
           <button 
             onClick={() => setMode('FORM')}
-            className="p-8 bg-white rounded-2xl shadow-md hover:shadow-xl transition border-2 border-transparent hover:border-uh-green group"
+            className="w-full p-8 bg-white rounded-2xl shadow-md hover:shadow-xl transition border-2 border-transparent hover:border-uh-green group"
           >
             <FileText size={48} className="mx-auto mb-4 text-uh-green group-hover:scale-110 transition" />
-            <h3 className="text-xl font-bold mb-2">تعبئة استبيان</h3>
-            <p className="text-gray-500 text-sm">نموذج سريع ومباشر لإدخال بياناتك</p>
+            <h3 className="text-xl font-bold mb-2">تعبئة بيانات الملف الصحي</h3>
+            <p className="text-gray-500 text-sm">نموذج سريع ومباشر لإدخال بياناتك وبناء خطتك</p>
           </button>
         </div>
       </div>
     );
   }
 
-  if (mode === 'AI') {
-    return (
-      <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col h-[600px]">
-        <div className="bg-uh-dark p-4 flex items-center justify-between text-white">
-          <div className="flex items-center gap-2">
-             <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-             <span className="font-bold">المساعد الذكي</span>
-          </div>
-          <button onClick={() => setMode('SELECT')} className="text-sm text-gray-300 hover:text-white">إلغاء</button>
-        </div>
-        
-        <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50">
-          {messages.map((msg, idx) => (
-            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}>
-              <div className={`max-w-[80%] p-3 rounded-2xl ${msg.role === 'user' ? 'bg-uh-green text-white rounded-tr-none' : 'bg-white border text-gray-800 rounded-tl-none shadow-sm'}`}>
-                {msg.text}
-              </div>
-            </div>
-          ))}
-          {loading && <div className="text-center text-gray-400 text-sm">جاري الكتابة...</div>}
-        </div>
 
-        <div className="p-4 bg-white border-t flex gap-2">
-          <input 
-            type="text" 
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAISend()}
-            placeholder="اكتب إجابتك هنا..."
-            className="flex-1 border rounded-full px-4 py-2 focus:outline-none focus:border-uh-green"
-          />
-          <button 
-            onClick={handleAISend}
-            disabled={loading}
-            className="bg-uh-gold text-uh-dark p-3 rounded-full hover:bg-yellow-500 disabled:opacity-50"
-          >
-            <Send size={20} />
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (mode === 'PASSWORD') {
       return (

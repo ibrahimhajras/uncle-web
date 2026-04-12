@@ -87,13 +87,13 @@ export const Home: React.FC<HomeProps> = ({ onStart }) => {
               </div>
               
               <h2 className="text-2xl md:text-3xl font-brand font-bold text-uh-dark mb-4 leading-relaxed">
-                  اجعل مساعدك الصحي الذكي <br/>
-                  <span className="text-uh-green">يعد لك خطتك الصحية</span> <br/>
-                  لتحقيق هدفك
+                  استشر مساعدك الذكي <br/>
+                  <span className="text-uh-green">للإجابة على استفساراتك</span> <br/>
+                  حول وجباتنا وخدماتنا
               </h2>
               
               <p className="text-gray-500 mb-8 text-sm">
-                  دع الذكاء الاصطناعي يحلل بياناتك ويصمم لك الجدول الغذائي الأمثل في ثوانٍ.
+                  مساعدنا متاح دائماً لمساعدتك في اختيار الوجبات الأنسب وفهم تفاصيل الاشتراكات.
               </p>
 
               <button 
