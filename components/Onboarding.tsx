@@ -26,9 +26,26 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMode('PASSWORD'); // Move to password step
+    
+    // Check if phone number is already registered
+    setIsGenerating(true);
+    try {
+        const exists = await authService.checkPhoneExists(formData.phone);
+        if (exists) {
+            alert("رقم الهاتف هذا مسجل بالفعل. يرجى تسجيل الدخول أو استخدام رقم آخر.");
+            return;
+        }
+        setMode('PASSWORD'); // Move to password step
+    } catch (error) {
+        console.error("Error checking phone existence", error);
+        // If check fails, we might decide to let them proceed or block. 
+        // Safer to let them proceed but they'll hit the 'create' rule later.
+        setMode('PASSWORD');
+    } finally {
+        setIsGenerating(false);
+    }
   };
 
 
@@ -63,9 +80,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
 
         // 4. Complete
         onComplete(finalProfile);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Registration failed", error);
-        alert("حدث خطأ أثناء إنشاء الحساب. قد يكون رقم الهاتف مستخدماً بالفعل.");
+        alert(error.message || "حدث خطأ أثناء إنشاء الحساب. قد يكون رقم الهاتف مستخدماً بالفعل.");
     } finally {
         setIsGenerating(false);
     }

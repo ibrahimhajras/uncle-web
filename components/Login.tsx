@@ -16,11 +16,18 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGoToSignup }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const cleanIdentifier = authService.sanitizeIdentifier(identifier);
+    if (!cleanIdentifier) {
+        setError('يرجى إدخال رقم هاتف صحيح');
+        return;
+    }
+
     setLoading(true);
     setError('');
     
     try {
-        const user = await authService.login(identifier, password);
+        const user = await authService.login(cleanIdentifier, password);
         if (user) {
           onLogin(user);
         } else {

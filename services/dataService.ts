@@ -63,11 +63,12 @@ export const dataService = {
   // Connection test
   testConnection: async () => {
     try {
-      await getDocFromServer(doc(db, 'test', 'connection'));
+      // Use a more standard doc path that we know has 'allow read: if true'
+      const docRef = doc(db, 'content', 'main_content');
+      await getDocFromServer(docRef);
     } catch (error) {
-      if (error instanceof Error && error.message.includes('the client is offline')) {
-        console.error("Please check your Firebase configuration.");
-      }
+      // Don't throw, just log warning for connection troubleshooting
+      console.warn("Firebase Connection Test Note:", error);
     }
   },
 

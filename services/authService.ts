@@ -4,14 +4,43 @@ import { db } from './firebase';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 
 export const authService = {
+  // Helper to normalize phone numbers or emails
+  sanitizeIdentifier: (id: string): string => {
+    if (!id) return '';
+    if (id.includes('@')) return id.toLowerCase().trim();
+    // For phone numbers: remove all whitespace and ensure only digits and plus sign remain
+    return id.replace(/\s+/g, '').replace(/[^\d+]/g, '');
+  },
+
+  // Check if a user exists by phone
+  checkPhoneExists: async (phone: string): Promise<boolean> => {
+    const cleanPhone = authService.sanitizeIdentifier(phone);
+    if (!cleanPhone) return false;
+    try {
+      const docRef = doc(db, "users", cleanPhone);
+      const docSnap = await getDoc(docRef);
+      return docSnap.exists();
+    } catch (e) {
+      console.error("Check user exists failed", e);
+      return false;
+    }
+  },
+
   // Save a new user
   register: async (user: UserProfile): Promise<UserProfile> => {
+    const cleanPhone = authService.sanitizeIdentifier(user.phone);
+    const userToSave = { ...user, id: cleanPhone, phone: cleanPhone };
+    
     try {
-      await setDoc(doc(db, "users", user.phone), user);
-      return user;
-    } catch (e) {
-      console.warn("Registration to DB failed, using local session only.");
-      return user;
+      await setDoc(doc(db, "users", cleanPhone), userToSave);
+      return userToSave;
+    } catch (e: any) {
+      console.error("Registration to DB failed:", {
+          message: e?.message,
+          code: e?.code,
+          identifier: cleanPhone
+      });
+      throw new Error("فشل حفظ البيانات في قاعدة البيانات. يرجى المحاولة مرة أخرى.");
     }
   },
 
@@ -53,9 +82,11 @@ export const authService = {
         };
     }
 
-    // Regular User Login (Firestore lookup by phone)
+    const cleanIdentifier = authService.sanitizeIdentifier(identifier);
+
+    // Regular User Login (Firestore lookup by phone/identifier)
     try {
-      const docRef = doc(db, "users", identifier);
+      const docRef = doc(db, "users", cleanIdentifier);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
@@ -65,8 +96,12 @@ export const authService = {
         }
       }
       return null;
-    } catch (e) {
-      console.warn("Login failed due to DB error or invalid credentials");
+    } catch (e: any) {
+      console.warn("Firestore Login Document Get Failed:", {
+          message: e?.message,
+          code: e?.code,
+          identifier: cleanIdentifier
+      });
       return null;
     }
   },
