@@ -20,8 +20,8 @@ if (!firebaseConfig.apiKey) {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-// Use the default Firestore database so rules in the Firebase Console apply directly.
-export const db = getFirestore(app);
+// Use the named Firestore database as specified in .env
+export const db = getFirestore(app, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID);
 export const analytics = typeof window !== 'undefined' && firebaseConfig.measurementId ? getAnalytics(app) : null;
 export const auth = getAuth(app);
 
