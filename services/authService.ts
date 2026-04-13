@@ -1,7 +1,16 @@
 
+import { signInAnonymously } from 'firebase/auth';
 import { UserProfile } from '../types';
-import { db } from './firebase';
+import { auth, db } from './firebase';
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
+
+// Ensure the SDK has a valid auth token (anonymous) before any Firestore operation.
+// This gives request.auth a non-null value so security rules can evaluate correctly.
+const ensureAuth = async (): Promise<void> => {
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+};
 
 export const authService = {
   // Helper to normalize phone numbers or emails
@@ -17,6 +26,7 @@ export const authService = {
     const cleanPhone = authService.sanitizeIdentifier(phone);
     if (!cleanPhone) return false;
     try {
+      await ensureAuth();
       const docRef = doc(db, "users", cleanPhone);
       const docSnap = await getDoc(docRef);
       return docSnap.exists();
@@ -32,6 +42,7 @@ export const authService = {
     const userToSave = { ...user, id: cleanPhone, phone: cleanPhone };
     
     try {
+      await ensureAuth();
       await setDoc(doc(db, "users", cleanPhone), userToSave);
       return userToSave;
     } catch (e: any) {
@@ -86,6 +97,7 @@ export const authService = {
 
     // Regular User Login (Firestore lookup by phone/identifier)
     try {
+      await ensureAuth();
       const docRef = doc(db, "users", cleanIdentifier);
       const docSnap = await getDoc(docRef);
 
@@ -108,6 +120,7 @@ export const authService = {
 
   getAllUsers: async (): Promise<UserProfile[]> => {
     try {
+      await ensureAuth();
       const querySnapshot = await getDocs(collection(db, "users"));
       const users: UserProfile[] = [];
       querySnapshot.forEach((doc) => {
