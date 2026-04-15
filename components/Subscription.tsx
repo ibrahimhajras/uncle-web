@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Subscription as SubscriptionModel, DeliverySlot, SubscriptionPlan } from '../types';
+import { Subscription as SubscriptionModel, DeliverySlot, SubscriptionPlan, UserProfile } from '../types';
 import { dataService } from '../services/dataService';
 import { Check, Clock, MapPin, Truck, Tag, Edit3, Phone, Share2, ChevronRight, ChevronLeft, MessageCircle } from 'lucide-react';
 import { OptimizedImage } from './OptimizedImage';
@@ -11,9 +11,10 @@ interface SubscriptionProps {
     initialPlanId?: string | null;
     onPlanClick?: (planId: string) => void;
     onClearInitialPlan?: () => void;
+    user: UserProfile;
 }
 
-export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId, onPlanClick, onClearInitialPlan }) => {
+export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId, onPlanClick, onClearInitialPlan, user }) => {
   const [step, setStep] = useState(1);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -117,6 +118,7 @@ export const Subscription: React.FC<SubscriptionProps> = ({ initialPlanId, onPla
                 address: subData.address,
                 phone: subData.phone,
                 notes: subData.notes,
+                user: user,
                 date: new Date().toISOString(),
                 planTitle: selectedPlan.title,
                 pricePaid: finalPrice,

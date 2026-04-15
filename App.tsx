@@ -266,7 +266,7 @@ const App: React.FC = () => {
         }
         return <Profile user={user} onMealClick={handleMealClick} onAddToCart={handleAddToCart} />;
       case 'SUBSCRIPTION':
-        return <Subscription initialPlanId={initialPlanId} onPlanClick={handlePlanClick} onClearInitialPlan={() => setInitialPlanId(null)} />;
+        return <Subscription user={user} initialPlanId={initialPlanId} onPlanClick={handlePlanClick} onClearInitialPlan={() => setInitialPlanId(null)} />;
       case 'CART':
         return (
             <Cart 
