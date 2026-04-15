@@ -1,16 +1,118 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      // Allow any authenticated session (including anonymous) to read/write.
-      // The app signs in anonymously before every Firestore operation so
-      // request.auth will never be null for legitimate app traffic.
-      allow read, write: if request.auth != null;
+
+    // ================================================================
+    // NOTE: This app uses custom phone-based authentication stored in
+    // Firestore. Firebase Auth is used only to satisfy request.auth != null
+    // (via anonymous sign-in). Therefore, request.auth.uid does NOT
+    // correspond to any user document and cannot be used for ownership checks.
+    // ================================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Lock down everything else
-    match /{document=**} {
-      allow read, write: if false;
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidUser(data) {
+      return hasRequiredFields(['id', 'name', 'hasProfile']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 128 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.hasProfile is bool &&
+             (!('age' in data) || data.age is string) &&
+             (!('gender' in data) || data.gender is string) &&
+             (!('height' in data) || data.height is string) &&
+             (!('weight' in data) || data.weight is string) &&
+             (!('goal' in data) || data.goal is string) &&
+             (!('allergies' in data) || data.allergies is string) &&
+             (!('phone' in data) || data.phone is string) &&
+             (!('isAdmin' in data) || data.isAdmin is bool) &&
+             (!('isChef' in data) || data.isChef is bool) &&
+             (!('isEmployee' in data) || data.isEmployee is bool);
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['id', 'user', 'items', 'total', 'address', 'phone', 'date', 'status']) &&
+             data.id is string && data.total is number && data.total >= 0 &&
+             data.status in ['pending', 'completed', 'cancelled'] &&
+             data.items is list && data.items.size() > 0 && data.items.size() < 50;
+    }
+
+    function isValidSubscription(data) {
+      return hasRequiredFields(['id', 'duration', 'deliverySlot', 'address', 'phone', 'user', 'date', 'mealsPerDay', 'totalMeals', 'status']) &&
+             data.id is string && data.mealsPerDay is number && data.mealsPerDay > 0 &&
+             data.totalMeals is number && data.totalMeals > 0 &&
+             data.status in ['active', 'postponed', 'delivered', 'out-for-delivery', 'cancelled'];
+    }
+
+    function isValidMeal(data) {
+      return hasRequiredFields(['id', 'name', 'description', 'image', 'price', 'macros']) &&
+             data.id is string && data.name is string && data.price is number && data.price >= 0 &&
+             data.macros is map;
+    }
+
+    function isValidPlan(data) {
+      return hasRequiredFields(['id', 'title', 'price', 'features', 'durationLabel']) &&
+             data.id is string && data.title is string && data.price is number && data.price >= 0 &&
+             data.features is list;
+    }
+
+    function isValidPromo(data) {
+      return hasRequiredFields(['id', 'code', 'type', 'discountAmount', 'isPercentage', 'isActive']) &&
+             data.id is string && data.code is string && data.type in ['MEALS', 'SUBSCRIPTION'] &&
+             data.discountAmount is number && data.discountAmount >= 0 &&
+             data.isPercentage is bool && data.isActive is bool;
+    }
+
+    // Users: any authenticated session can read/write (for login + registration)
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                      request.resource.data.id == resource.data.id; // prevent ID tampering
+    }
+
+    // Orders: any authenticated session can read/write
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && isValidOrder(request.resource.data);
+    }
+
+    // Subscriptions: any authenticated session can read/write/delete
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSubscription(request.resource.data);
+      allow update: if isAuthenticated() && isValidSubscription(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /meals/{mealId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    match /promos/{promoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /analytics/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if true;
+    }
+
+    match /content/{docId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

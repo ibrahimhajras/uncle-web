@@ -2,6 +2,7 @@
 import { Order, Subscription, SiteContent, Meal, SubscriptionPlan, PromoCode, AnalyticsData } from '../types';
 import { MEALS, PLANS } from '../constants';
 import { db, auth } from './firebase';
+import { ensureAuth } from './authService';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, getDoc, increment, getDocFromServer } from 'firebase/firestore';
 
 export enum OperationType {
@@ -76,6 +77,7 @@ export const dataService = {
   getOrders: async (): Promise<Order[]> => {
     const path = "orders";
     try {
+      await ensureAuth();
       const orders: Order[] = [];
       const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
@@ -91,6 +93,7 @@ export const dataService = {
   saveOrder: async (order: Order) => {
     const path = `orders/${order.id}`;
     try {
+        await ensureAuth();
         await setDoc(doc(db, "orders", order.id), order);
     } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, path);
@@ -100,6 +103,7 @@ export const dataService = {
   updateOrderStatus: async (id: string, status: 'pending' | 'completed' | 'cancelled') => {
     const path = `orders/${id}`;
     try {
+        await ensureAuth();
         const orderRef = doc(db, "orders", id);
         await updateDoc(orderRef, { status: status });
     } catch (e) {
@@ -111,6 +115,7 @@ export const dataService = {
   getSubscriptions: async (): Promise<Subscription[]> => {
     const path = "subscriptions";
     try {
+      await ensureAuth();
       const subs: Subscription[] = [];
       const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
@@ -128,6 +133,7 @@ export const dataService = {
     const path = `subscriptions/${id}`;
     const subWithId = { ...sub, id, status: 'active', deliveredCount: 0, postponedCount: 0 };
     try {
+        await ensureAuth();
         await setDoc(doc(db, "subscriptions", id), subWithId);
     } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, path);
@@ -137,6 +143,7 @@ export const dataService = {
   updateSubscription: async (id: string, updates: Partial<Subscription>) => {
     const path = `subscriptions/${id}`;
     try {
+        await ensureAuth();
         const subRef = doc(db, "subscriptions", id);
         await updateDoc(subRef, updates);
     } catch (e) {
@@ -147,6 +154,7 @@ export const dataService = {
   deleteSubscription: async (id: string) => {
     const path = `subscriptions/${id}`;
     try {
+        await ensureAuth();
         const subRef = doc(db, "subscriptions", id);
         await deleteDoc(subRef);
     } catch (e) {
@@ -185,6 +193,7 @@ export const dataService = {
 
     const path = "content/main_content";
     try {
+      await ensureAuth();
       const docRef = doc(db, "content", "main_content");
       const docSnap = await getDoc(docRef);
 
@@ -209,6 +218,7 @@ export const dataService = {
   saveContent: async (content: SiteContent): Promise<boolean> => {
     const path = "content/main_content";
     try {
+      await ensureAuth();
       await setDoc(doc(db, "content", "main_content"), content);
       return true;
     } catch (e) {
@@ -221,6 +231,7 @@ export const dataService = {
   getMeals: async (): Promise<Meal[]> => {
     const path = "meals";
     try {
+      await ensureAuth();
       const querySnapshot = await getDocs(collection(db, path));
       const meals: Meal[] = [];
       querySnapshot.forEach((doc) => {
@@ -244,6 +255,7 @@ export const dataService = {
   addMeal: async (meal: Meal) => {
     const path = `meals/${meal.id}`;
     try {
+        await ensureAuth();
         await setDoc(doc(db, "meals", meal.id), meal);
     } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, path);
@@ -252,6 +264,7 @@ export const dataService = {
   deleteMeal: async (id: string) => {
     const path = `meals/${id}`;
     try {
+        await ensureAuth();
         await deleteDoc(doc(db, "meals", id));
     } catch (e) {
         handleFirestoreError(e, OperationType.DELETE, path);
@@ -270,6 +283,7 @@ export const dataService = {
 
       const path = "analytics/main_stats";
       try {
+          await ensureAuth();
           const docRef = doc(db, "analytics", "main_stats");
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
@@ -295,6 +309,7 @@ export const dataService = {
   logVisit: async () => {
       const path = "analytics/main_stats";
       try {
+          await ensureAuth();
           const docRef = doc(db, "analytics", "main_stats");
           const currentHour = new Date().getHours();
           await setDoc(docRef, {
@@ -309,6 +324,7 @@ export const dataService = {
   logMealView: async (mealId: string) => {
       const path = "analytics/main_stats";
       try {
+          await ensureAuth();
           const docRef = doc(db, "analytics", "main_stats");
           await setDoc(docRef, {
               mealViews: {
@@ -321,6 +337,7 @@ export const dataService = {
   logAppClick: async (platform: 'android' | 'ios') => {
       const path = "analytics/main_stats";
       try {
+          await ensureAuth();
           const docRef = doc(db, "analytics", "main_stats");
           await setDoc(docRef, {
               [platform === 'android' ? 'androidClicks' : 'iosClicks']: increment(1)
@@ -333,6 +350,7 @@ export const dataService = {
     let plans: SubscriptionPlan[] = [];
     const path = "plans";
     try {
+      await ensureAuth();
       const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         plans.push(doc.data() as SubscriptionPlan);
@@ -363,7 +381,9 @@ export const dataService = {
     if (existingIndex >= 0) localPlans[existingIndex] = plan;
     else localPlans.push(plan);
     const path = `plans/${plan.id}`;
-    try { await setDoc(doc(db, "plans", plan.id), plan); } catch (e) {
+    try { 
+        await ensureAuth();
+        await setDoc(doc(db, "plans", plan.id), plan); } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, path);
     }
   },
@@ -371,7 +391,9 @@ export const dataService = {
   deleteSubscriptionPlan: async (id: string) => {
     localPlans = localPlans.filter(p => p.id !== id);
     const path = `plans/${id}`;
-    try { await deleteDoc(doc(db, "plans", id)); } catch (e) {
+    try { 
+        await ensureAuth();
+        await deleteDoc(doc(db, "plans", id)); } catch (e) {
         handleFirestoreError(e, OperationType.DELETE, path);
     }
   },
@@ -381,6 +403,7 @@ export const dataService = {
     let promos: PromoCode[] = [];
     const path = "promos";
     try {
+      await ensureAuth();
       const querySnapshot = await getDocs(collection(db, path));
       querySnapshot.forEach((doc) => {
         promos.push(doc.data() as PromoCode);
@@ -401,7 +424,9 @@ export const dataService = {
     if (idx >= 0) localPromos[idx] = promo;
     else localPromos.push(promo);
     const path = `promos/${promo.id}`;
-    try { await setDoc(doc(db, "promos", promo.id), promo); } catch (e) {
+    try { 
+        await ensureAuth();
+        await setDoc(doc(db, "promos", promo.id), promo); } catch (e) {
         handleFirestoreError(e, OperationType.WRITE, path);
     }
   },
@@ -409,7 +434,9 @@ export const dataService = {
   deletePromoCode: async (id: string) => {
     localPromos = localPromos.filter(p => p.id !== id);
     const path = `promos/${id}`;
-    try { await deleteDoc(doc(db, "promos", id)); } catch (e) {
+    try { 
+        await ensureAuth();
+        await deleteDoc(doc(db, "promos", id)); } catch (e) {
         handleFirestoreError(e, OperationType.DELETE, path);
     }
   },

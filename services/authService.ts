@@ -6,7 +6,7 @@ import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore';
 
 // Ensure the SDK has a valid auth token (anonymous) before any Firestore operation.
 // This gives request.auth a non-null value so security rules can evaluate correctly.
-const ensureAuth = async (): Promise<void> => {
+export const ensureAuth = async (): Promise<void> => {
   if (!auth.currentUser) {
     await signInAnonymously(auth);
   }
@@ -63,6 +63,18 @@ export const authService = {
             id: 'admin',
             name: 'المدير العام',
             phone: '00000000',
+            hasProfile: true,
+            isAdmin: true,
+            age: '', gender: '', height: '', weight: '', goal: '', allergies: ''
+        };
+    }
+
+    // Secondary Admin Check
+    if (identifier === 'admin2@uncle.com' && password === 'UncleAdmin2026!') {
+        return {
+            id: 'admin2',
+            name: 'المدير المساعد',
+            phone: '00000002',
             hasProfile: true,
             isAdmin: true,
             age: '', gender: '', height: '', weight: '', goal: '', allergies: ''

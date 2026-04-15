@@ -141,6 +141,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       setShowMealModal(true);
   };
 
+  const handleSavePromo = async () => {
+      if (!newPromo.code || !newPromo.discountAmount) { alert('الرجاء إدخال الكود وقيمة الخصم'); return; }
+      const promoToSave: PromoCode = {
+          id: newPromo.id || `promo_${Date.now()}`,
+          code: newPromo.code,
+          type: newPromo.type || 'SUBSCRIPTION',
+          discountAmount: Number(newPromo.discountAmount),
+          isPercentage: !!newPromo.isPercentage,
+          isActive: true
+      };
+      await dataService.savePromoCode(promoToSave);
+      setPromos(await dataService.getPromoCodes());
+      setShowPromoModal(false);
+  };
+
+  const handleTogglePromo = async (promo: PromoCode) => {
+      const updated = { ...promo, isActive: !promo.isActive };
+      await dataService.savePromoCode(updated);
+      setPromos(await dataService.getPromoCodes());
+  };
+
+  const handleDeletePromo = async (id: string) => {
+      if(confirm('حذف هذا الكود؟')) {
+          await dataService.deletePromoCode(id);
+          setPromos(await dataService.getPromoCodes());
+      }
+  };
+
+  const handleSaveContent = async () => {
+      const success = await dataService.saveContent(content);
+      if (success) {
+          alert('تم حفظ محتوى الموقع بنجاح!');
+          loadAllData();
+      } else {
+          alert('فشل في حفظ المحتوى.');
+      }
+  };
+
   const handleSaveMeal = async () => {
       if (!newMeal.name || !newMeal.price) { alert('الرجاء إدخال اسم الوجبة والسعر'); return; }
       const mealToSave: Meal = {
@@ -318,6 +356,211 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       </div>
                   </div>
               )}
+
+              {activeTab === 'ORDERS' && (
+                  <div className="space-y-6">
+                      <h2 className="text-2xl font-bold text-uh-dark">الطلبات الأخيرة</h2>
+                      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                          <div className="overflow-x-auto">
+                              <table className="w-full text-right" dir="rtl">
+                                  <thead className="bg-gray-50 border-b">
+                                      <tr>
+                                          <th className="p-4 text-xs font-bold text-gray-500">رقم الطلب</th>
+                                          <th className="p-4 text-xs font-bold text-gray-500">العميل</th>
+                                          <th className="p-4 text-xs font-bold text-gray-500">المبلغ</th>
+                                          <th className="p-4 text-xs font-bold text-gray-500">الحالة</th>
+                                          <th className="p-4 text-xs font-bold text-gray-500">الإجراءات</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {orders.map(order => (
+                                          <tr key={order.id} className="border-b hover:bg-gray-50 transition">
+                                              <td className="p-4"><span className="text-xs font-mono text-gray-400">#{order.id.slice(-6)}</span></td>
+                                              <td className="p-4">
+                                                  <div className="font-bold">{order.user.name}</div>
+                                                  <div className="text-[10px] text-gray-400">{order.phone}</div>
+                                              </td>
+                                              <td className="p-4 font-bold text-uh-green">{order.total} د.أ</td>
+                                              <td className="p-4">
+                                                  <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                                                      order.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                                                      order.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                                                  }`}>
+                                                      {order.status === 'completed' ? 'مكتمل' : order.status === 'cancelled' ? 'ملغي' : 'قيد الانتظار'}
+                                                  </span>
+                                              </td>
+                                              <td className="p-4 flex gap-2">
+                                                  {order.status !== 'completed' && <button onClick={() => handleUpdateOrderStatus(order.id, 'completed')} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition"><Check size={16}/></button>}
+                                                  {order.status !== 'cancelled' && <button onClick={() => handleUpdateOrderStatus(order.id, 'cancelled')} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition"><X size={16}/></button>}
+                                              </td>
+                                          </tr>
+                                      ))}
+                                      {orders.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-400 italic">لا توجد طلبات حالياً</td></tr>}
+                                  </tbody>
+                              </table>
+                          </div>
+                      </div>
+                  </div>
+              )}
+
+              {activeTab === 'SUBSCRIPTIONS' && (
+                  <div className="space-y-6">
+                      <h2 className="text-2xl font-bold text-uh-dark">الاشتراكات الفعالة</h2>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {subscriptions.map(sub => (
+                              <div key={sub.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                  <div className="flex justify-between items-start mb-4">
+                                      <div>
+                                          <h3 className="font-bold">{sub.user?.name || 'عميل'}</h3>
+                                          <p className="text-xs text-gray-400">{sub.phone}</p>
+                                      </div>
+                                      <span className="text-[10px] bg-uh-gold/20 text-uh-greenDark px-2 py-1 rounded-full font-bold">{sub.planTitle}</span>
+                                  </div>
+                                  <div className="space-y-2 mb-4">
+                                      <div className="flex justify-between text-xs">
+                                          <span className="text-gray-400">التقدم:</span>
+                                          <span className="font-bold">{sub.deliveredCount} / {sub.totalMeals} وجبة</span>
+                                      </div>
+                                      <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                                          <div className="bg-uh-green h-full transition-all" style={{ width: `${(sub.deliveredCount / sub.totalMeals) * 100}%` }}></div>
+                                      </div>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-4 border-t">
+                                      <a href={`tel:${sub.phone}`} className="text-blue-500 hover:text-blue-600 transition flex items-center gap-1 text-xs font-bold"><Phone size={14}/> اتصال</a>
+                                      <span className={`text-[10px] font-bold ${sub.status === 'active' ? 'text-green-500' : 'text-gray-400'}`}>
+                                          {sub.status === 'active' ? 'نشط' : 'متوقف'}
+                                      </span>
+                                  </div>
+                              </div>
+                          ))}
+                          {subscriptions.length === 0 && <div className="col-span-full py-20 text-center text-gray-400 italic bg-white rounded-2xl border border-dashed">لا توجد اشتراكات active حالياً</div>}
+                      </div>
+                  </div>
+              )}
+
+              {activeTab === 'USERS' && (
+                  <div className="space-y-6">
+                      <h2 className="text-2xl font-bold text-uh-dark">قائمة المستخدمين</h2>
+                      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                          <table className="w-full text-right">
+                              <thead className="bg-gray-50 border-b">
+                                  <tr>
+                                      <th className="p-4 text-xs font-bold text-gray-500">الاسم</th>
+                                      <th className="p-4 text-xs font-bold text-gray-500">الهاتف</th>
+                                      <th className="p-4 text-xs font-bold text-gray-500">الدور</th>
+                                      <th className="p-4 text-xs font-bold text-gray-500">تاريخ التسجيل</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                  {users.map(u => (
+                                      <tr key={u.id} className="border-b hover:bg-gray-50">
+                                          <td className="p-4 font-bold">{u.name}</td>
+                                          <td className="p-4 text-gray-500">{u.phone}</td>
+                                          <td className="p-4">
+                                              <div className="flex gap-1">
+                                                  {u.isAdmin && <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">Admin</span>}
+                                                  {u.isChef && <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Chef</span>}
+                                                  {u.isEmployee && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Staff</span>}
+                                                  {!u.isAdmin && !u.isChef && !u.isEmployee && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-bold">User</span>}
+                                              </div>
+                                          </td>
+                                          <td className="p-4 text-xs text-gray-400">غير متوفر</td>
+                                      </tr>
+                                  ))}
+                              </tbody>
+                          </table>
+                      </div>
+                  </div>
+              )}
+
+              {activeTab === 'PROMO' && (
+                  <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                          <h2 className="text-2xl font-bold text-uh-dark">كوبونات الخصم</h2>
+                          <button onClick={() => { setNewPromo({ code: '', discountAmount: 0, isPercentage: false, type: 'SUBSCRIPTION' }); setShowPromoModal(true); }} className="bg-uh-dark text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus size={18}/> كود جديد</button>
+                      </div>
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {promos.map(promo => (
+                              <div key={promo.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                                  <div className="flex justify-between items-center mb-3">
+                                      <span className="text-lg font-mono font-bold text-uh-gold">{promo.code}</span>
+                                      <button onClick={() => handleTogglePromo(promo)} className={`w-10 h-6 rounded-full transition-colors relative ${promo.isActive ? 'bg-uh-green' : 'bg-gray-300'}`}>
+                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${promo.isActive ? 'left-5' : 'left-1'}`}></div>
+                                      </button>
+                                  </div>
+                                  <div className="text-sm font-bold text-gray-700 mb-1">
+                                      خصم {promo.discountAmount}{promo.isPercentage ? '%' : ' د.أ'}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 mb-4">
+                                      {promo.type === 'SUBSCRIPTION' ? 'على الاشتراكات' : 'على الوجبات'}
+                                  </div>
+                                  <div className="flex justify-end pt-4 border-t">
+                                      <button onClick={() => handleDeletePromo(promo.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition"><Trash2 size={18}/></button>
+                                  </div>
+                              </div>
+                          ))}
+                          {promos.length === 0 && <div className="col-span-full py-16 text-center text-gray-400 bg-white rounded-2xl border border-dashed">لم يتم إنشاء أكواد خصم بعد</div>}
+                      </div>
+                  </div>
+              )}
+
+              {activeTab === 'CONTENT' && (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-bold text-uh-dark">تعديل محتوى المتجر</h2>
+                        <button onClick={handleSaveContent} className="bg-uh-green text-white px-6 py-2 rounded-lg font-bold shadow-md hover:brightness-110 flex items-center gap-2"><Check size={18}/> حفظ التغييرات</button>
+                    </div>
+
+                    <div className="grid lg:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 text-uh-gold"><Zap size={18}/> القسم التعريفي (Hero)</h3>
+                                <div className="space-y-4">
+                                    <div><label className="text-xs text-gray-400 mb-1 block">العنوان الرئيسي</label><input className="w-full border p-3 rounded-xl outline-none" value={content.heroTitle} onChange={e => setContent({...content, heroTitle: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-400 mb-1 block">العنوان الفرعي</label><textarea rows={3} className="w-full border p-3 rounded-xl outline-none" value={content.heroSubtitle} onChange={e => setContent({...content, heroSubtitle: e.target.value})} /></div>
+                                    <ImageUploader label="صورة الخلفية" value={content.heroImage} onChange={url => setContent({...content, heroImage: url})} />
+                                </div>
+                            </section>
+
+                            <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 text-uh-gold"><Smartphone size={18}/> بنر تحميل التطبيق</h3>
+                                <div className="space-y-4">
+                                    <div><label className="text-xs text-gray-400 mb-1 block">عنوان البنر</label><input className="w-full border p-3 rounded-xl outline-none" value={content.appBannerTitle1} onChange={e => setContent({...content, appBannerTitle1: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-400 mb-1 block">التطبيق في كلمة</label><input className="w-full border p-3 rounded-xl outline-none" value={content.appBannerHighlight} onChange={e => setContent({...content, appBannerHighlight: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-400 mb-1 block">وصف البنر</label><textarea rows={2} className="w-full border p-3 rounded-xl outline-none" value={content.appBannerText} onChange={e => setContent({...content, appBannerText: e.target.value})} /></div>
+                                    <ImageUploader label="صورة الهاتف" value={content.appBannerImage || ''} onChange={url => setContent({...content, appBannerImage: url})} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div><label className="text-xs text-gray-400 mb-1 block">رابط Android</label><input className="w-full border p-2 rounded-lg text-xs" value={content.linkAndroid} onChange={e => setContent({...content, linkAndroid: e.target.value})} /></div>
+                                        <div><label className="text-xs text-gray-400 mb-1 block">رابط iOS</label><input className="w-full border p-2 rounded-lg text-xs" value={content.linkIOS} onChange={e => setContent({...content, linkIOS: e.target.value})} /></div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        <div className="space-y-6">
+                            <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 text-uh-gold"><MessageCircle size={18}/> التواصل والروابط</h3>
+                                <div className="space-y-4">
+                                    <div><label className="text-xs text-gray-400 mb-1 block">رقم الواتساب / الهاتف</label><input className="w-full border p-3 rounded-xl outline-none" value={content.contactPhone} onChange={e => setContent({...content, contactPhone: e.target.value})} /></div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><label className="text-xs text-gray-400 mb-1 block">رابط فيسبوك</label><input className="w-full border p-2 rounded-lg text-xs" value={content.socialFacebook} onChange={e => setContent({...content, socialFacebook: e.target.value})} /></div>
+                                        <div><label className="text-xs text-gray-400 mb-1 block">رابط انستقرام</label><input className="w-full border p-2 rounded-lg text-xs" value={content.socialInstagram} onChange={e => setContent({...content, socialInstagram: e.target.value})} /></div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="font-bold mb-4 flex items-center gap-2 text-uh-gold"><Shield size={18}/> السياسات</h3>
+                                <div className="space-y-4">
+                                    <div><label className="text-xs text-gray-400 mb-1 block">سياسة الخصوصية</label><textarea rows={4} className="w-full border p-3 rounded-xl outline-none text-xs" value={content.privacyPolicy} onChange={e => setContent({...content, privacyPolicy: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-400 mb-1 block">سياسة الإرجاع</label><textarea rows={2} className="w-full border p-3 rounded-xl outline-none text-xs" value={content.returnPolicy} onChange={e => setContent({...content, returnPolicy: e.target.value})} /></div>
+                                    <div><label className="text-xs text-gray-400 mb-1 block">نظام الدفع</label><textarea rows={2} className="w-full border p-3 rounded-xl outline-none text-xs" value={content.paymentPolicy} onChange={e => setContent({...content, paymentPolicy: e.target.value})} /></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+              )}
           </main>
       </div>
       
@@ -352,21 +595,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <button onClick={() => setShowMealModal(false)}><X className="text-gray-500"/></button>
                   </div>
                   <div className="space-y-4">
-                      <input placeholder="اسم الوجبة" className="w-full border p-3 rounded-lg" value={newMeal.name} onChange={e => setNewMeal({...newMeal, name: e.target.value})} />
-                      <textarea placeholder="وصف الوجبة" rows={2} className="w-full border p-3 rounded-lg" value={newMeal.description} onChange={e => setNewMeal({...newMeal, description: e.target.value})} />
+                      <input placeholder="اسم الوجبة" className="w-full border p-3 rounded-xl outline-none" value={newMeal.name} onChange={e => setNewMeal({...newMeal, name: e.target.value})} />
+                      <textarea placeholder="وصف الوجبة" rows={2} className="w-full border p-3 rounded-xl outline-none" value={newMeal.description} onChange={e => setNewMeal({...newMeal, description: e.target.value})} />
                       <ImageUploader label="صورة الوجبة" value={newMeal.image || ''} onChange={(url) => setNewMeal({...newMeal, image: url})} />
-                      <input type="number" placeholder="السعر (د.أ)" className="w-full border p-3 rounded-lg" value={newMeal.price || ''} onChange={e => setNewMeal({...newMeal, price: Number(e.target.value)})} />
+                      <input type="number" placeholder="السعر (د.أ)" className="w-full border p-3 rounded-xl outline-none" value={newMeal.price || ''} onChange={e => setNewMeal({...newMeal, price: Number(e.target.value)})} />
                       <div className="grid grid-cols-4 gap-2 text-center text-sm">
                           <div><label className="block mb-1 text-xs">سعرات</label><input type="number" className="w-full border p-2 rounded" value={newMeal.macros?.calories || ''} onChange={e => setNewMeal({...newMeal, macros: {...newMeal.macros!, calories: Number(e.target.value)}})} /></div>
                           <div><label className="block mb-1 text-xs">بروتين</label><input type="number" className="w-full border p-2 rounded" value={newMeal.macros?.protein || ''} onChange={e => setNewMeal({...newMeal, macros: {...newMeal.macros!, protein: Number(e.target.value)}})} /></div>
                           <div><label className="block mb-1 text-xs">كارب</label><input type="number" className="w-full border p-2 rounded" value={newMeal.macros?.carbs || ''} onChange={e => setNewMeal({...newMeal, macros: {...newMeal.macros!, carbs: Number(e.target.value)}})} /></div>
                           <div><label className="block mb-1 text-xs">دهون</label><input type="number" className="w-full border p-2 rounded" value={newMeal.macros?.fats || ''} onChange={e => setNewMeal({...newMeal, macros: {...newMeal.macros!, fats: Number(e.target.value)}})} /></div>
                       </div>
-                      <textarea placeholder="المكونات (كل مكون في سطر)" rows={3} className="w-full border p-3 rounded-lg" value={mealIngredientsText} onChange={e => setMealIngredientsText(e.target.value)} />
-                      <textarea placeholder="طريقة التحضير (كل خطوة في سطر)" rows={3} className="w-full border p-3 rounded-lg" value={mealInstructionsText} onChange={e => setMealInstructionsText(e.target.value)} />
+                      <textarea placeholder="المكونات (كل مكون في سطر)" rows={3} className="w-full border p-3 rounded-xl outline-none" value={mealIngredientsText} onChange={e => setMealIngredientsText(e.target.value)} />
+                      <textarea placeholder="طريقة التحضير (كل خطوة في سطر)" rows={3} className="w-full border p-3 rounded-xl outline-none" value={mealInstructionsText} onChange={e => setMealInstructionsText(e.target.value)} />
                       <button onClick={handleSaveMeal} className="w-full bg-uh-green text-white font-bold py-3 rounded-lg">
                           {newMeal.id ? 'حفظ التعديلات' : 'إضافة الوجبة'}
                       </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {showPromoModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 animate-fade-in">
+                  <div className="flex justify-between items-center mb-4 border-b pb-2">
+                       <h3 className="text-xl font-bold">كود خصم جديد</h3>
+                       <button onClick={() => setShowPromoModal(false)}><X className="text-gray-500"/></button>
+                  </div>
+                  <div className="space-y-4">
+                      <input placeholder="كود الخصم (مثال: SAVE20)" className="w-full border p-3 rounded-xl outline-none uppercase font-mono" value={newPromo.code} onChange={e => setNewPromo({...newPromo, code: e.target.value.toUpperCase()})} />
+                      <div className="grid grid-cols-2 gap-2">
+                          <input type="number" placeholder="قيمة الخصم" className="border p-3 rounded-xl outline-none" value={newPromo.discountAmount || ''} onChange={e => setNewPromo({...newPromo, discountAmount: Number(e.target.value)})} />
+                          <select className="border p-3 rounded-xl outline-none text-xs" value={newPromo.isPercentage ? 'true' : 'false'} onChange={e => setNewPromo({...newPromo, isPercentage: e.target.value === 'true'})}>
+                              <option value="true">نسبة مئوية (%)</option>
+                              <option value="false">مبلغ ثابت (د.أ)</option>
+                          </select>
+                      </div>
+                      <select className="w-full border p-3 rounded-xl outline-none" value={newPromo.type} onChange={e => setNewPromo({...newPromo, type: e.target.value as any})}>
+                          <option value="SUBSCRIPTION">خصم على الاشتراكات</option>
+                          <option value="MEALS">خصم على طلبات الوجبات</option>
+                      </select>
+                      <button onClick={handleSavePromo} className="w-full bg-uh-gold text-uh-dark font-bold py-3 rounded-xl shadow-md">تفعيل الكود</button>
                   </div>
               </div>
           </div>
